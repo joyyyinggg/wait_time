@@ -128,15 +128,25 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 18px;
-    position: sticky;
-    top: 0;
-    background: var(--white);
-    padding: 4px 0 12px;
-    z-index: 1;
   }
   .modal-hdr h2 { font-size: 16px; font-weight: 600; }
   .close-btn { font-size: 22px; color: var(--gray-mid); cursor: pointer; line-height: 1; background: none; border: none; padding: 0 4px; }
   .close-btn:hover { color: var(--text); }
+
+  .dismiss-btn {
+    display: block;
+    width: 100%;
+    margin-top: 16px;
+    padding: 13px;
+    background: var(--gray-bg);
+    color: var(--gray-mid);
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .dismiss-btn:hover { background: #e8eaed; color: var(--text); }
 
   /* login inside modal */
   #loginSection, #editSection { display: none; }
@@ -236,7 +246,6 @@
   <div class="modal-sheet">
     <div class="modal-hdr">
       <h2 id="modalTitle">管理員登入</h2>
-      <button class="close-btn" onclick="closeAdmin()">×</button>
     </div>
 
     <!-- login -->
@@ -247,6 +256,7 @@
         <input class="pw-input" type="password" id="pwIn" placeholder="••••" autocomplete="current-password">
         <div class="pw-err" id="pwErr"></div>
         <button class="pw-btn" id="pwBtn" onclick="doLogin()">進入管理</button>
+        <button class="dismiss-btn" onclick="closeAdmin()">關閉</button>
       </div>
     </div>
 
@@ -273,6 +283,7 @@
 
       <a class="sheet-link" id="sheetLink" href="#" target="_blank">📊 直接開啟 Google 試算表</a>
     </div>
+  <button class="dismiss-btn" onclick="closeAdmin()">關閉</button>
   </div>
 </div>
 

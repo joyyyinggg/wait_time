@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>目前等候時間</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #1A2744;
+    --orange: #FF6B35;
+    --gray-bg: #F5F6F8;
+    --gray-mid: #9AA0AD;
+    --white: #FFFFFF;
+    --text: #1A2744;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--gray-bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px 48px;
+  }
+
+  .brand {
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .card {
+    background: var(--white);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 32px rgba(26,39,68,.09), 0 1px 4px rgba(26,39,68,.06);
+    overflow: hidden;
+  }
+
+  .card-top {
+    background: var(--navy);
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-top h1 { color: rgba(255,255,255,.6); font-size: 12px; font-weight: 500; letter-spacing: .07em; text-transform: uppercase; }
+  .gear { color: rgba(255,255,255,.3); font-size: 18px; cursor: pointer; padding: 2px 0 2px 8px; line-height: 1; text-decoration: none; }
+  .gear:hover { color: rgba(255,255,255,.6); }
+
+  .card-body {
+    padding: 24px 22px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .wait-lbl { font-size: 11px; color: var(--gray-mid); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 2px; }
+  .wait-num {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    font-size: clamp(80px, 26vw, 128px);
+    color: var(--orange);
+    line-height: 1;
+    letter-spacing: -.02em;
+    transition: color .3s;
+  }
+  .wait-num.closed { font-size: clamp(28px, 8vw, 40px); color: var(--gray-mid); padding: 20px 0; }
+  .wait-unit { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 400; color: var(--navy); margin-top: 2px; }
+
+  .divider { width: 36px; height: 2px; background: var(--gray-bg); border-radius: 2px; margin: 18px 0 14px; }
+
+  .note-section { width: 100%; }
+  .note-lbl { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gray-mid); margin-bottom: 6px; }
+  .note-box { background: var(--gray-bg); border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.65; color: var(--text); white-space: pre-wrap; word-break: break-word; min-height: 44px; }
+  .note-box.empty { color: var(--gray-mid); font-style: italic; }
+
+  .card-foot {
+    padding: 10px 22px 16px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #2ECC71; animation: blink 2s infinite; flex-shrink: 0; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .foot-txt { font-size: 11px; color: var(--gray-mid); }
+  .updated-at { font-size: 11px; color: var(--gray-mid); margin-left: auto; }
+
+  /* hint */
+  .hint { font-size: 11px; color: var(--gray-mid); margin-top: 12px; text-align: center; }
+
+  /* ── ADMIN MODAL OVERLAY ── */
+  #adminModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,18,40,.55);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+  #adminModal.open { display: flex; }
+
+  .modal-sheet {
+    background: var(--white);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 20px 20px 36px;
+    animation: slideUp .25s ease;
+  }
+  @keyframes slideUp { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+  .modal-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .modal-hdr h2 { font-size: 16px; font-weight: 600; }
+  .close-btn { font-size: 22px; color: var(--gray-mid); cursor: pointer; line-height: 1; background: none; border: none; padding: 0 4px; }
+  .close-btn:hover { color: var(--text); }
+
+  /* login inside modal */
+  #loginSection, #editSection { display: none; }
+  #loginSection.show, #editSection.show { display: block; }
+
+  .pw-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .lock-ico { width: 44px; height: 44px; border-radius: 12px; background: var(--navy); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .pw-wrap p { font-size: 14px; color: var(--gray-mid); }
+  .pw-input {
+    width: 100%; padding: 12px; border: 1.5px solid #E2E5ED; border-radius: 10px;
+    font-size: 18px; text-align: center; letter-spacing: .1em; outline: none;
+    transition: border-color .2s;
+  }
+  .pw-input:focus { border-color: var(--orange); }
+  .pw-btn {
+    width: 100%; padding: 13px; background: var(--navy); color: var(--white);
+    border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .pw-btn:hover { background: #24357a; }
+  .pw-err { font-size: 12px; color: #E74C3C; min-height: 16px; text-align: center; }
+
+  /* edit form */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--gray-mid); margin-bottom: 6px; font-weight: 600; }
+  .field input[type=number], .field textarea {
+    width: 100%; padding: 11px 13px; border: 1.5px solid #E2E5ED; border-radius: 10px;
+    font-size: 15px; font-family: inherit; outline: none; transition: border-color .2s;
+    color: var(--text); background: var(--white);
+  }
+  .field input[type=number]:focus, .field textarea:focus { border-color: var(--orange); }
+  .field textarea { resize: none; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+  .pre { background: var(--gray-bg); border: 1.5px solid transparent; border-radius: 8px; padding: 7px 11px; font-size: 13px; cursor: pointer; color: var(--navy); transition: all .15s; }
+  .pre:hover, .pre.on { border-color: var(--orange); color: var(--orange); background: #fff5f0; }
+
+  .toggle-row { display: flex; align-items: center; gap: 10px; padding: 11px 13px; background: var(--gray-bg); border-radius: 10px; cursor: pointer; user-select: none; margin-bottom: 16px; }
+  .sw { width: 42px; height: 24px; border-radius: 12px; background: #CBD0DA; position: relative; transition: background .2s; flex-shrink: 0; }
+  .sw::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:white; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .sw.on { background: var(--navy); }
+  .sw.on::after { transform: translateX(18px); }
+  .toggle-lbl { font-size: 14px; }
+
+  .save-btn {
+    width: 100%; padding: 14px; background: var(--orange); color: white;
+    border: none; border-radius: 12px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background .2s, transform .1s;
+  }
+  .save-btn:hover { background: #e85d28; }
+  .save-btn:active { transform: scale(.98); }
+
+  .toast { text-align: center; font-size: 12px; color: #2ECC71; min-height: 18px; margin-top: 10px; opacity: 0; transition: opacity .3s; }
+  .toast.show { opacity: 1; }
+
+  .sheet-link {
+    display: block; text-align: center; font-size: 12px; color: var(--gray-mid);
+    margin-top: 14px; text-decoration: none;
+  }
+  .sheet-link:hover { color: var(--navy); }
+
+  @media (min-width: 480px) {
+    #adminModal { align-items: center; }
+    .modal-sheet { border-radius: 20px; max-width: 420px; }
+  }
+</style>
+</head>
+<body>
+
+<p class="brand">等候資訊看板</p>
+
+<div class="card">
+  <div class="card-top">
+    <h1>目前預計等候時間</h1>
+    <span class="gear" onclick="openAdmin()" title="管理員">⚙</span>
+  </div>
+  <div class="card-body">
+    <p class="wait-lbl" id="vLbl">預計等候</p>
+    <div class="wait-num" id="vNum">—</div>
+    <p class="wait-unit" id="vUnit">分鐘</p>
+    <div class="divider"></div>
+    <div class="note-section">
+      <p class="note-lbl">備註說明</p>
+      <div class="note-box empty" id="vNote">（目前無備註）</div>
+    </div>
+  </div>
+  <div class="card-foot">
+    <div class="dot"></div>
+    <span class="foot-txt">即時資訊</span>
+    <span class="updated-at" id="vTime"></span>
+  </div>
+</div>
+
+<p class="hint">每 15 秒自動更新</p>
+
+<!-- ADMIN MODAL -->
+<div id="adminModal">
+  <div class="modal-sheet">
+    <div class="modal-hdr">
+      <h2 id="modalTitle">管理員登入</h2>
+      <button class="close-btn" onclick="closeAdmin()">×</button>
+    </div>
+
+    <!-- login -->
+    <div id="loginSection" class="show">
+      <div class="pw-wrap">
+        <div class="lock-ico">🔒</div>
+        <p>請輸入管理員密碼</p>
+        <input class="pw-input" type="password" id="pwIn" placeholder="••••" autocomplete="current-password">
+        <div class="pw-err" id="pwErr"></div>
+        <button class="pw-btn" onclick="doLogin()">進入管理</button>
+      </div>
+    </div>
+
+    <!-- edit -->
+    <div id="editSection">
+      <div class="field">
+        <label>等候時間（分鐘）</label>
+        <input type="number" id="aMin" min="0" max="999" value="30" oninput="syncPre()">
+        <div class="presets" id="preWrap"></div>
+      </div>
+
+      <div class="field">
+        <label>備註說明</label>
+        <textarea id="aNote" rows="3" placeholder="例：請在門口等候叫號，謝謝配合"></textarea>
+      </div>
+
+      <div class="toggle-row" onclick="toggleClosed()">
+        <div class="sw" id="swEl"></div>
+        <span class="toggle-lbl" id="swLbl">顯示為「暫停服務」</span>
+      </div>
+
+      <button class="save-btn" onclick="doSave()">儲存並更新 Google 試算表</button>
+      <div class="toast" id="toast">✓ 已更新！觀看者 15 秒內看到新資訊</div>
+
+      <a class="sheet-link" id="sheetLink" href="#" target="_blank">📊 直接開啟 Google 試算表</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 設定區 ────────────────────────────────────────────
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxPxjZ34D5eyLxa5ku5D3ioi-Y6JqEiNo8_-WAUN0AXiy18PJIXFNaT170eQc55eBXA/exec';
+const ADMIN_PW  = '1234';   // ← 可改成你的密碼
+const SHEET_EDIT_URL = ''; // ← 可貼入試算表的網址（選填）
+// ─────────────────────────────────────────────────────
+
+const PRESETS = [5, 10, 15, 20, 30, 45, 60];
+let isClosed = false;
+let pollTimer;
+
+function $(id){ return document.getElementById(id); }
+
+// ── 顯示看板 ──
+async function fetchData(){
+  try {
+    const res = await fetch(SHEET_URL + '?t=' + Date.now());
+    const d = await res.json();
+    applyViewer(d);
+  } catch(e){
+    $('vNum').textContent = '—';
+  }
+}
+
+function applyViewer(d){
+  const num = $('vNum');
+  if(d.closed === true || d.closed === 'TRUE'){
+    num.textContent = '暫停服務';
+    num.className = 'wait-num closed';
+    $('vUnit').style.display = 'none';
+    $('vLbl').style.display = 'none';
+  } else {
+    num.textContent = d.minutes ?? '—';
+    num.className = 'wait-num';
+    $('vUnit').style.display = '';
+    $('vLbl').style.display = '';
+  }
+  const note = $('vNote');
+  if(d.note && String(d.note).trim()){
+    note.textContent = d.note;
+    note.classList.remove('empty');
+  } else {
+    note.textContent = '（目前無備註）';
+    note.classList.add('empty');
+  }
+  const now = new Date();
+  $('vTime').textContent = '更新：' + now.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+}
+
+function startPoll(){
+  fetchData();
+  pollTimer = setInterval(fetchData, 15000);
+}
+
+// ── 管理員面板 ──
+function openAdmin(){
+  $('adminModal').classList.add('open');
+  $('pwIn').value = '';
+  $('pwErr').textContent = '';
+  $('loginSection').classList.add('show');
+  $('editSection').classList.remove('show');
+  $('modalTitle').textContent = '管理員登入';
+  setTimeout(()=>$('pwIn').focus(), 200);
+}
+
+function closeAdmin(){
+  $('adminModal').classList.remove('open');
+}
+
+$('adminModal').addEventListener('click', e => {
+  if(e.target === $('adminModal')) closeAdmin();
+});
+
+$('pwIn').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+function doLogin(){
+  if($('pwIn').value === ADMIN_PW){
+    $('pwErr').textContent = '';
+    showEdit();
+  } else {
+    $('pwErr').textContent = '密碼錯誤，請再試一次';
+  }
+}
+
+async function showEdit(){
+  $('loginSection').classList.remove('show');
+  $('editSection').classList.add('show');
+  $('modalTitle').textContent = '更新等候時間';
+  if(SHEET_EDIT_URL) $('sheetLink').href = SHEET_EDIT_URL;
+  else $('sheetLink').style.display = 'none';
+
+  // 從 Sheet 讀取現有值
+  try {
+    const res = await fetch(SHEET_URL + '?t=' + Date.now());
+    const d = await res.json();
+    $('aMin').value = d.minutes ?? 30;
+    $('aNote').value = (d.note && d.note !== 'undefined') ? d.note : '';
+    isClosed = (d.closed === true || d.closed === 'TRUE');
+    updateSW();
+    syncPre();
+  } catch(e){}
+}
+
+// 預設按鈕
+(function buildPresets(){
+  const wrap = $('preWrap');
+  PRESETS.forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'pre';
+    b.textContent = v + ' 分';
+    b.onclick = () => { $('aMin').value = v; syncPre(); };
+    wrap.appendChild(b);
+  });
+})();
+
+function syncPre(){
+  const val = parseInt($('aMin').value);
+  document.querySelectorAll('.pre').forEach(b => {
+    b.classList.toggle('on', parseInt(b.textContent) === val);
+  });
+}
+
+function toggleClosed(){
+  isClosed = !isClosed;
+  updateSW();
+}
+function updateSW(){
+  $('swEl').className = 'sw' + (isClosed ? ' on' : '');
+  $('swLbl').textContent = isClosed ? '目前顯示「暫停服務」' : '顯示為「暫停服務」';
+}
+
+async function doSave(){
+  const minutes = parseInt($('aMin').value) || 0;
+  const note    = $('aNote').value.trim();
+  const closed  = isClosed;
+
+  const url = SHEET_URL
+    + '?minutes=' + encodeURIComponent(minutes)
+    + '&note='    + encodeURIComponent(note)
+    + '&closed='  + encodeURIComponent(closed);
+
+  try {
+    await fetch(url, { method: 'GET', mode: 'no-cors' });
+    applyViewer({ minutes, note, closed });
+    const t = $('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  } catch(e){
+    alert('更新失敗，請確認網路連線');
+  }
+}
+
+startPoll();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # 等候時間看板 README
 
-一個輕量的 RWD 網頁，讓你隨時用手機更新等候時間，客人掃 LINE 連結即可即時查看。
+一個輕量的 RWD 網頁，隨時用手機更新等候時間，客人掃 LINE 連結即可即時查看。
 
 ---
 
@@ -31,11 +31,11 @@ waittime.html  ←→  Google Apps Script  ←→  Google 試算表
 
 ```javascript
 const SHEET_URL      = 'https://script.google.com/macros/s/...';  // Apps Script 網址
-const ADMIN_PW       = 'a';       // ← 請改成你的密碼
+const ADMIN_PW       = '*';       // ← 請改成你的密碼(此處隱藏密碼)
 const SHEET_EDIT_URL = '';        // ← 選填：貼入 Google 試算表的網址，管理面板會顯示快捷連結
 ```
 
-> ⚠️ **安全提醒**：密碼目前是 `a`，請務必改成較複雜的密碼再正式上線。
+> ⚠️ **安全提醒**：務必改成較複雜的密碼再正式上線。
 
 ---
 

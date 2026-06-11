@@ -4,47 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>目前等候時間</title>
-
-<!--
-  ╔══════════════════════════════════════════════════════════╗
-  ║              等候時間看板  waittime.html                 ║
-  ╠══════════════════════════════════════════════════════════╣
-  ║  功能：                                                  ║
-  ║    • 觀看者畫面：顯示目前等候分鐘數與備註               ║
-  ║    • 管理員面板：密碼保護，可即時更新時間與備註          ║
-  ║                                                          ║
-  ║  資料流向：                                              ║
-  ║    讀取：網頁 → Google Apps Script → Google 試算表       ║
-  ║    寫入：管理員儲存 → Apps Script → 試算表更新           ║
-  ║                                                          ║
-  ║  設定位置：                                              ║
-  ║    檔案底部 <script> 內的「設定區」                      ║
-  ║    • SHEET_URL  : Apps Script 部署網址                   ║
-  ║    • ADMIN_PW   : 管理員密碼                             ║
-  ║    • SHEET_EDIT_URL : 試算表直接開啟連結（選填）         ║
-  ╚══════════════════════════════════════════════════════════╝
--->
-
-<!-- Google Fonts：Oswald 用於大數字顯示，視覺清晰有力 -->
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
-
 <style>
-  /* ── 全域 Reset ── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  /* ── CSS 變數（色盤）──
-     修改這裡可快速換色整個網頁 */
   :root {
-    --navy:    #1A2744;   /* 深藍：頁首、按鈕背景 */
-    --orange:  #FF6B35;   /* 橘色：等候數字、強調色 */
-    --gray-bg: #F5F6F8;   /* 淺灰：頁面背景、輸入框底色 */
-    --gray-mid:#9AA0AD;   /* 中灰：說明文字、次要資訊 */
+    --navy:    #1A2744;
+    --orange:  #FF6B35;
+    --gray-bg: #F5F6F8;
+    --gray-mid:#9AA0AD;
     --white:   #FFFFFF;
-    --text:    #1A2744;   /* 主文字色（同 navy） */
+    --text:    #1A2744;
+    --red:     #E74C3C;
   }
-
-  /* ── 頁面整體 ──
-     flex 垂直置中，讓卡片在所有螢幕大小都居中 */
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: var(--gray-bg);
@@ -57,246 +28,162 @@
     padding: 24px 16px 48px;
   }
 
-  /* ── 品牌標題（最上方小字）── */
-  .brand {
-    font-size: 12px;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--gray-mid);
-    margin-bottom: 20px;
-    text-align: center;
-  }
+  .brand { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gray-mid); margin-bottom: 20px; text-align: center; }
 
-  /* ── 主卡片容器 ──
-     max-width 限制寬度，手機全寬、平板以上置中 */
-  .card {
-    background: var(--white);
-    border-radius: 20px;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 4px 32px rgba(26,39,68,.09), 0 1px 4px rgba(26,39,68,.06);
-    overflow: hidden; /* 讓圓角裁切到子元素 */
-  }
+  .card { background: var(--white); border-radius: 20px; width: 100%; max-width: 400px; box-shadow: 0 4px 32px rgba(26,39,68,.09), 0 1px 4px rgba(26,39,68,.06); overflow: hidden; }
 
-  /* ── 卡片頂部深藍區塊 ── */
-  .card-top {
-    background: var(--navy);
-    padding: 16px 22px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
+  .card-top { background: var(--navy); padding: 16px 22px; display: flex; align-items: center; justify-content: space-between; }
   .card-top h1 { color: rgba(255,255,255,.6); font-size: 12px; font-weight: 500; letter-spacing: .07em; text-transform: uppercase; }
 
-  /* ── 管理員齒輪圖示 ──
-     故意設低透明度（.3），不醒目，避免客人誤按 */
-  .gear { color: rgba(255,255,255,.3); font-size: 18px; cursor: pointer; padding: 2px 0 2px 8px; line-height: 1; text-decoration: none; }
+  /* 右側圖示群：鈴鐺 + 齒輪 */
+  .top-icons { display: flex; align-items: center; gap: 4px; }
+  .gear { color: rgba(255,255,255,.3); font-size: 18px; cursor: pointer; padding: 2px 4px; line-height: 1; }
   .gear:hover { color: rgba(255,255,255,.6); }
 
-  /* ── 卡片主體（等候時間 + 備註）── */
-  .card-body {
-    padding: 24px 22px 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  /* 鈴鐺錯誤提示：預設隱藏，有 error 才出現 */
+  .bell-wrap { position: relative; display: none; cursor: pointer; padding: 2px 4px; }
+  .bell-wrap.show { display: flex; align-items: center; }
+  .bell-ico { font-size: 17px; animation: bellShake .6s ease infinite; }
+  @keyframes bellShake {
+    0%,100% { transform: rotate(0); }
+    20%      { transform: rotate(15deg); }
+    40%      { transform: rotate(-12deg); }
+    60%      { transform: rotate(8deg); }
+    80%      { transform: rotate(-5deg); }
   }
-
-  /* ── 等候時間說明小字 ── */
-  .wait-lbl { font-size: 11px; color: var(--gray-mid); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 2px; }
-
-  /* ── 等候分鐘大數字 ──
-     clamp(最小值, 偏好值, 最大值)：RWD 響應式字體
-     手機小螢幕縮小、大螢幕放大，最大 128px */
-  .wait-num {
-    font-family: 'Oswald', sans-serif;
-    font-weight: 700;
-    font-size: clamp(80px, 26vw, 128px);
-    color: var(--orange);
+  /* 紅色數字角標 */
+  .bell-badge {
+    position: absolute; top: 0; right: 0;
+    background: var(--red); color: white;
+    font-size: 9px; font-weight: 700;
+    min-width: 14px; height: 14px;
+    border-radius: 7px; padding: 0 3px;
+    display: flex; align-items: center; justify-content: center;
     line-height: 1;
-    letter-spacing: -.02em;
-    transition: color .3s;
   }
-  /* 暫停服務狀態：文字縮小、改灰色 */
-  .wait-num.closed { font-size: clamp(28px, 8vw, 40px); color: var(--gray-mid); padding: 20px 0; }
 
-  /* ── 「分鐘」單位文字 ── */
+  /* 錯誤詳情浮層（點鈴鐺展開） */
+  .error-popup {
+    display: none;
+    position: absolute;
+    top: 44px; right: 12px;
+    background: var(--white);
+    border: 1.5px solid #fde8e8;
+    border-radius: 12px;
+    padding: 12px 14px;
+    width: 240px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.12);
+    z-index: 200;
+  }
+  .error-popup.open { display: block; }
+  .error-popup-title { font-size: 12px; font-weight: 600; color: var(--red); margin-bottom: 6px; }
+  .error-popup-msg { font-size: 12px; color: var(--text); line-height: 1.5; word-break: break-all; }
+  .error-popup-time { font-size: 11px; color: var(--gray-mid); margin-top: 6px; }
+  .error-popup-close { font-size: 11px; color: var(--gray-mid); cursor: pointer; margin-top: 8px; display: inline-block; }
+  .error-popup-close:hover { color: var(--red); }
+
+  .card-body { padding: 24px 22px 18px; display: flex; flex-direction: column; align-items: center; }
+
+  .wait-lbl { font-size: 11px; color: var(--gray-mid); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 2px; }
+  .wait-num {
+    font-family: 'Oswald', sans-serif; font-weight: 700;
+    font-size: clamp(80px, 26vw, 128px);
+    color: var(--orange); line-height: 1; letter-spacing: -.02em; transition: color .3s;
+  }
+  .wait-num.closed { font-size: clamp(28px, 8vw, 40px); color: var(--gray-mid); padding: 20px 0; }
   .wait-unit { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 400; color: var(--navy); margin-top: 2px; }
 
-  /* ── 分隔線 ── */
   .divider { width: 36px; height: 2px; background: var(--gray-bg); border-radius: 2px; margin: 18px 0 14px; }
 
-  /* ── 備註說明區塊 ── */
   .note-section { width: 100%; }
   .note-lbl { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gray-mid); margin-bottom: 6px; }
-  .note-box {
-    background: var(--gray-bg);
-    border-radius: 10px;
-    padding: 12px 14px;
-    font-size: 14px;
-    line-height: 1.65;
-    color: var(--text);
-    white-space: pre-wrap;   /* 保留換行符號 */
-    word-break: break-word;  /* 長字串自動換行 */
-    min-height: 44px;
-  }
-  /* 無備註時顯示灰色斜體提示 */
+  .note-box { background: var(--gray-bg); border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.65; color: var(--text); white-space: pre-wrap; word-break: break-word; min-height: 44px; }
   .note-box.empty { color: var(--gray-mid); font-style: italic; }
 
-  /* ── 卡片底部（即時狀態列）── */
-  .card-foot {
-    padding: 10px 22px 16px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-  }
-  /* 綠色閃爍小圓點，表示資料即時更新中 */
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: #2ECC71; animation: blink 2s infinite; flex-shrink: 0; }
+  .card-foot { padding: 10px 22px 16px; display: flex; align-items: center; gap: 7px; }
+  /* 綠點正常 / 紅點異常 */
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #2ECC71; animation: blink 2s infinite; flex-shrink: 0; transition: background .3s; }
+  .dot.error { background: var(--red); }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
   .foot-txt { font-size: 11px; color: var(--gray-mid); }
-  /* margin-left: auto 將更新時間推到右側 */
   .updated-at { font-size: 11px; color: var(--gray-mid); margin-left: auto; }
 
-  /* ── 底部提示文字（幾秒更新一次）── */
   .hint { font-size: 11px; color: var(--gray-mid); margin-top: 12px; text-align: center; }
 
-
-  /* ════════════════════════════════════
-     管理員 Modal（從底部滑出的面板）
-     ════════════════════════════════════ */
-
-  /* 全螢幕半透明遮罩
-     預設 display:none，加上 .open class 後才顯示 */
+  /* ── ADMIN MODAL ── */
   #adminModal {
-    display: none;
-    position: fixed;
-    inset: 0;                      /* 覆蓋整個畫面 */
-    background: rgba(10,18,40,.55);
-    z-index: 100;
-    align-items: flex-end;         /* 面板貼齊底部 */
-    justify-content: center;
-    padding: 52px 0 0;             /* 頂部留白，避免被瀏覽器工具列遮住 */
+    display: none; position: fixed; inset: 0;
+    background: rgba(10,18,40,.55); z-index: 100;
+    align-items: flex-end; justify-content: center;
+    padding: 52px 0 0;
   }
   #adminModal.open { display: flex; }
 
-  /* 白色面板本體
-     max-height + overflow-y: auto 讓內容超出時可捲動 */
   .modal-sheet {
-    background: var(--white);
-    border-radius: 20px 20px 0 0;  /* 只有頂部圓角 */
-    width: 100%;
-    max-width: 480px;
-    padding: 20px 20px 36px;
-    animation: slideUp .25s ease;  /* 向上滑入動畫 */
-    max-height: 92vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch; /* iOS 慣性捲動 */
+    background: var(--white); border-radius: 20px 20px 0 0;
+    width: 100%; max-width: 480px; padding: 20px 20px 36px;
+    animation: slideUp .25s ease; max-height: 92vh;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
-  /* 從底部 60px 處滑入並淡入 */
   @keyframes slideUp { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
 
-  /* 面板標題列 */
-  .modal-hdr {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-  }
+  .modal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
   .modal-hdr h2 { font-size: 16px; font-weight: 600; }
-  /* 叉叉按鈕（保留 class 備用，目前以 dismiss-btn 取代）*/
-  .close-btn { font-size: 22px; color: var(--gray-mid); cursor: pointer; line-height: 1; background: none; border: none; padding: 0 4px; }
-  .close-btn:hover { color: var(--text); }
 
-  /* ── 底部關閉按鈕 ──
-     放在面板底部，避免被瀏覽器／LINE 工具列遮住 */
   .dismiss-btn {
-    display: block;
-    width: 100%;
-    margin-top: 16px;
-    padding: 13px;
-    background: var(--gray-bg);
-    color: var(--gray-mid);
-    border: none;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
+    display: block; width: 100%; margin-top: 16px; padding: 13px;
+    background: var(--gray-bg); color: var(--gray-mid);
+    border: none; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer;
   }
   .dismiss-btn:hover { background: #e8eaed; color: var(--text); }
 
-  /* ── 登入區 / 編輯區 切換 ──
-     預設都隱藏，加上 .show 才顯示
-     兩個區塊互斥，同時只顯示一個 */
   #loginSection, #editSection { display: none; }
   #loginSection.show, #editSection.show { display: block; }
 
-  /* ── 密碼登入區樣式 ── */
   .pw-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .lock-ico { width: 44px; height: 44px; border-radius: 12px; background: var(--navy); display: flex; align-items: center; justify-content: center; font-size: 20px; }
   .pw-wrap p { font-size: 14px; color: var(--gray-mid); }
-  .pw-input {
-    width: 100%; padding: 12px; border: 1.5px solid #E2E5ED; border-radius: 10px;
-    font-size: 18px; text-align: center; letter-spacing: .1em; outline: none;
-    transition: border-color .2s;
-  }
+  .pw-input { width: 100%; padding: 12px; border: 1.5px solid #E2E5ED; border-radius: 10px; font-size: 18px; text-align: center; letter-spacing: .1em; outline: none; transition: border-color .2s; }
   .pw-input:focus { border-color: var(--orange); }
-  .pw-btn {
-    width: 100%; padding: 13px; background: var(--navy); color: var(--white);
-    border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
-  }
+  .pw-btn { width: 100%; padding: 13px; background: var(--navy); color: var(--white); border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
   .pw-btn:hover { background: #24357a; }
-  /* 密碼錯誤提示文字，min-height 避免版面跳動 */
-  .pw-err { font-size: 12px; color: #E74C3C; min-height: 16px; text-align: center; }
+  .pw-err { font-size: 12px; color: var(--red); min-height: 16px; text-align: center; }
 
-  /* ── 編輯表單欄位 ── */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--gray-mid); margin-bottom: 6px; font-weight: 600; }
-  .field input[type=number], .field textarea {
-    width: 100%; padding: 11px 13px; border: 1.5px solid #E2E5ED; border-radius: 10px;
-    font-size: 15px; font-family: inherit; outline: none; transition: border-color .2s;
-    color: var(--text); background: var(--white);
-  }
+  .field input[type=number], .field textarea { width: 100%; padding: 11px 13px; border: 1.5px solid #E2E5ED; border-radius: 10px; font-size: 15px; font-family: inherit; outline: none; transition: border-color .2s; color: var(--text); background: var(--white); }
   .field input[type=number]:focus, .field textarea:focus { border-color: var(--orange); }
   .field textarea { resize: none; }
 
-  /* ── 快速分鐘預設按鈕群組 ── */
   .presets { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
   .pre { background: var(--gray-bg); border: 1.5px solid transparent; border-radius: 8px; padding: 7px 11px; font-size: 13px; cursor: pointer; color: var(--navy); transition: all .15s; }
-  /* .on：目前選中的按鈕，橘色邊框高亮 */
   .pre:hover, .pre.on { border-color: var(--orange); color: var(--orange); background: #fff5f0; }
 
-  /* ── 暫停服務切換開關 ── */
   .toggle-row { display: flex; align-items: center; gap: 10px; padding: 11px 13px; background: var(--gray-bg); border-radius: 10px; cursor: pointer; user-select: none; margin-bottom: 16px; }
   .sw { width: 42px; height: 24px; border-radius: 12px; background: #CBD0DA; position: relative; transition: background .2s; flex-shrink: 0; }
-  /* ::after 偽元素模擬圓形滑塊 */
   .sw::after { content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:white; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
-  /* .on：開啟狀態，深藍背景 + 滑塊移到右側 */
   .sw.on { background: var(--navy); }
   .sw.on::after { transform: translateX(18px); }
   .toggle-lbl { font-size: 14px; }
 
-  /* ── 儲存按鈕 ── */
-  .save-btn {
-    width: 100%; padding: 14px; background: var(--orange); color: white;
-    border: none; border-radius: 12px; font-size: 15px; font-weight: 600;
-    cursor: pointer; transition: background .2s, transform .1s;
-  }
+  .save-btn { width: 100%; padding: 14px; background: var(--orange); color: white; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s; }
   .save-btn:hover { background: #e85d28; }
-  .save-btn:active { transform: scale(.98); } /* 按下時輕微縮放回饋 */
+  .save-btn:active { transform: scale(.98); }
 
-  /* ── 儲存成功提示 ──
-     預設透明，加上 .show 才顯示，3 秒後自動消失 */
   .toast { text-align: center; font-size: 12px; color: #2ECC71; min-height: 18px; margin-top: 10px; opacity: 0; transition: opacity .3s; }
   .toast.show { opacity: 1; }
 
-  /* ── 試算表快捷連結 ── */
-  .sheet-link {
-    display: block; text-align: center; font-size: 12px; color: var(--gray-mid);
-    margin-top: 14px; text-decoration: none;
+  /* 管理面板內的錯誤訊息列 */
+  .admin-err-bar {
+    display: none; background: #fde8e8; border-radius: 8px;
+    padding: 9px 12px; font-size: 12px; color: var(--red);
+    margin-bottom: 12px; line-height: 1.5;
   }
+  .admin-err-bar.show { display: block; }
+
+  .sheet-link { display: block; text-align: center; font-size: 12px; color: var(--gray-mid); margin-top: 14px; text-decoration: none; }
   .sheet-link:hover { color: var(--navy); }
 
-  /* ── RWD：螢幕寬度 ≥ 480px 時 ──
-     Modal 改為垂直置中（不貼底），圓角改為四角都圓 */
   @media (min-width: 480px) {
     #adminModal { align-items: center; }
     .modal-sheet { border-radius: 20px; max-width: 420px; }
@@ -305,400 +192,372 @@
 </head>
 <body>
 
-<!-- 品牌小標題 -->
 <p class="brand">等候資訊看板</p>
 
-<!-- ════════════════════════════
-     觀看者主卡片
-     ════════════════════════════ -->
 <div class="card">
-
-  <!-- 頂部深藍列：標題 + 管理員齒輪 -->
   <div class="card-top">
     <h1>目前預計等候時間</h1>
-    <!-- 齒輪圖示：點擊開啟管理員面板 -->
-    <span class="gear" onclick="openAdmin()" title="管理員">⚙</span>
+    <div class="top-icons">
+      <!-- 鈴鐺：只有管理員登入時才顯示，有 error 才出現 -->
+      <div class="bell-wrap" id="bellWrap" onclick="toggleErrorPopup()">
+        <span class="bell-ico">🔔</span>
+        <span class="bell-badge" id="bellBadge">1</span>
+      </div>
+      <!-- 錯誤詳情浮層 -->
+      <div class="error-popup" id="errorPopup">
+        <div class="error-popup-title">⚠️ 連線異常</div>
+        <div class="error-popup-msg" id="errorMsg">—</div>
+        <div class="error-popup-time" id="errorTime"></div>
+        <span class="error-popup-close" onclick="clearError()">✕ 清除通知</span>
+      </div>
+      <span class="gear" onclick="openAdmin()" title="管理員">⚙</span>
+    </div>
   </div>
-
-  <!-- 等候時間 + 備註 -->
   <div class="card-body">
-    <!-- 等候時間標籤（暫停服務時隱藏）-->
     <p class="wait-lbl" id="vLbl">預計等候</p>
-
-    <!-- 大數字：由 JS 動態填入分鐘數，暫停時改顯示文字 -->
     <div class="wait-num" id="vNum">—</div>
-
-    <!-- 「分鐘」單位（暫停服務時隱藏）-->
     <p class="wait-unit" id="vUnit">分鐘</p>
-
     <div class="divider"></div>
-
-    <!-- 備註說明（無備註時顯示灰色提示文字）-->
     <div class="note-section">
       <p class="note-lbl">備註說明</p>
       <div class="note-box empty" id="vNote">（目前無備註）</div>
     </div>
   </div>
-
-  <!-- 底部狀態列：綠點 + 「即時資訊」+ 更新時間 -->
   <div class="card-foot">
-    <div class="dot"></div>
-    <span class="foot-txt">即時資訊</span>
+    <div class="dot" id="statusDot"></div>
+    <span class="foot-txt" id="statusTxt">即時資訊</span>
     <span class="updated-at" id="vTime"></span>
   </div>
 </div>
 
-<!-- 自動更新提示 -->
-<p class="hint">每 6 秒自動更新</p>
+<p class="hint" id="hintTxt">每 10 秒自動更新</p>
 
-
-<!-- ════════════════════════════
-     管理員 Modal
-     結構：遮罩 > 面板 > (登入區 | 編輯區)
-     ════════════════════════════ -->
+<!-- ADMIN MODAL -->
 <div id="adminModal">
   <div class="modal-sheet">
-
-    <!-- 面板標題（由 JS 動態切換「管理員登入」/「更新等候時間」）-->
     <div class="modal-hdr">
       <h2 id="modalTitle">管理員登入</h2>
     </div>
 
-    <!-- ── 登入區（預設顯示）── -->
+    <!-- 登入區 -->
     <div id="loginSection" class="show">
       <div class="pw-wrap">
         <div class="lock-ico">🔒</div>
         <p>請輸入管理員密碼</p>
-        <!-- autocomplete="current-password" 讓手機可叫出密碼建議 -->
         <input class="pw-input" type="password" id="pwIn" placeholder="••••" autocomplete="current-password">
-        <!-- 密碼錯誤時顯示紅字 -->
         <div class="pw-err" id="pwErr"></div>
-        <!-- 點擊後按鈕文字變「載入中…」，等 Sheet 資料回來再顯示編輯區 -->
         <button class="pw-btn" id="pwBtn" onclick="doLogin()">進入管理</button>
         <button class="dismiss-btn" onclick="closeAdmin()">關閉</button>
       </div>
     </div>
 
-    <!-- ── 編輯區（登入成功後顯示）── -->
+    <!-- 編輯區 -->
     <div id="editSection">
+      <!-- 管理面板內的錯誤訊息列（儲存失敗時顯示）-->
+      <div class="admin-err-bar" id="adminErrBar"></div>
 
-      <!-- 等候分鐘輸入 + 快速預設按鈕 -->
       <div class="field">
         <label>等候時間（分鐘）</label>
-        <!-- oninput：每次改值就同步高亮對應的預設按鈕 -->
         <input type="number" id="aMin" min="0" max="999" value="30" oninput="syncPre()">
-        <!-- 快速預設按鈕由 JS buildPresets() 動態產生 -->
         <div class="presets" id="preWrap"></div>
       </div>
 
-      <!-- 備註說明文字輸入 -->
       <div class="field">
         <label>備註說明</label>
         <textarea id="aNote" rows="3" placeholder="例：請在門口等候叫號，謝謝配合"></textarea>
       </div>
 
-      <!-- 暫停服務開關（點整列都可觸發）-->
       <div class="toggle-row" onclick="toggleClosed()">
         <div class="sw" id="swEl"></div>
         <span class="toggle-lbl" id="swLbl">顯示為「暫停服務」</span>
       </div>
 
-      <!-- 儲存按鈕：將資料寫入 Google 試算表 -->
-      <button class="save-btn" onclick="doSave()">儲存並更新 Google 試算表</button>
+      <button class="save-btn" id="saveBtn" onclick="doSave()">儲存並更新 Google 試算表</button>
+      <div class="toast" id="toast">✓ 已更新！觀看者 10 秒內看到新資訊</div>
 
-      <!-- 儲存成功提示（預設隱藏，儲存後短暫顯示）-->
-      <div class="toast" id="toast">✓ 已更新！觀看者 6 秒內看到新資訊</div>
-
-      <!-- 試算表快捷連結（SHEET_EDIT_URL 有填才顯示）-->
       <a class="sheet-link" id="sheetLink" href="#" target="_blank">📊 直接開啟 Google 試算表</a>
     </div>
-
-    <!-- 關閉按鈕：放底部，避免被瀏覽器/LINE 工具列遮住 -->
     <button class="dismiss-btn" onclick="closeAdmin()">關閉</button>
   </div>
 </div>
-
 
 <script>
 // ══════════════════════════════════════════════════════
 //  ★ 設定區 — 只需修改這裡 ★
 // ══════════════════════════════════════════════════════
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxPxjZ34D5eyLxa5ku5D3ioi-Y6JqEiNo8_-WAUN0AXiy18PJIXFNaT170eQc55eBXA/exec';
-// Google Apps Script 部署網址，負責讀寫 Google 試算表
-
-const ADMIN_PW = 'a';
-// 管理員密碼（請改成較複雜的密碼後再正式上線）
-
-const SHEET_EDIT_URL = '';
-// 選填：貼入 Google 試算表網址，管理面板會出現快捷連結按鈕
+const SHEET_URL      = 'https://script.google.com/macros/s/AKfycbxPxjZ34D5eyLxa5ku5D3ioi-Y6JqEiNo8_-WAUN0AXiy18PJIXFNaT170eQc55eBXA/exec';
+const ADMIN_PW       = 'a';   // ← 請改成你的密碼
+const SHEET_EDIT_URL = '';    // ← 選填：試算表直接開啟連結
+const POLL_MS        = 10000; // ← 自動更新間隔（毫秒）建議 10000 以上
 // ══════════════════════════════════════════════════════
 
-
-// ── 快速預設按鈕的分鐘數清單 ──
-// 修改這裡可增減按鈕
 const PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80];
 
-let isClosed = false;  // 「暫停服務」開關的目前狀態
-let pollTimer;         // setInterval 計時器 ID（用於停止輪詢）
+let isClosed    = false;
+let pollTimer   = null;
+let isFetching  = false;  // 防止請求重疊的旗標
+let isAdmin     = false;  // 目前是否已登入管理員
+let errorCount  = 0;      // 累計連線失敗次數（用於角標）
 
-// 簡短的 getElementById 工具函式
 function $(id){ return document.getElementById(id); }
 
+// ══════════════════════════════════════════════════════
+//  錯誤通知系統
+// ══════════════════════════════════════════════════════
+
+/**
+ * setError(msg)
+ * 發生連線錯誤時呼叫：
+ *  - 觀看者畫面：狀態點變紅、更新文字變「連線異常」
+ *  - 管理員已登入：顯示鈴鐺 + 角標 + 記錄錯誤訊息
+ */
+function setError(msg){
+  // 底部狀態列改為紅色警示
+  $('statusDot').classList.add('error');
+  $('statusTxt').textContent = '連線異常';
+
+  // 只在管理員登入狀態下顯示鈴鐺
+  if(!isAdmin) return;
+
+  errorCount++;
+  $('bellBadge').textContent = errorCount > 9 ? '9+' : errorCount;
+  $('bellWrap').classList.add('show');
+  $('errorMsg').textContent = msg;
+  $('errorTime').textContent = '發生時間：' + new Date().toLocaleTimeString('zh-TW');
+
+  // 管理面板內也同步顯示錯誤列
+  const bar = $('adminErrBar');
+  bar.textContent = '⚠️ ' + msg;
+  bar.classList.add('show');
+}
+
+/**
+ * clearError()
+ * 手動清除錯誤通知（點「清除通知」）
+ */
+function clearError(){
+  errorCount = 0;
+  $('bellWrap').classList.remove('show');
+  $('errorPopup').classList.remove('open');
+  $('adminErrBar').classList.remove('show');
+}
+
+/**
+ * clearErrorOnSuccess()
+ * 請求成功後自動恢復正常狀態
+ */
+function clearErrorOnSuccess(){
+  $('statusDot').classList.remove('error');
+  $('statusTxt').textContent = '即時資訊';
+  // 鈴鐺保留，讓管理員知道曾發生過錯誤，需手動清除
+}
+
+function toggleErrorPopup(){
+  $('errorPopup').classList.toggle('open');
+}
+
+// 點其他地方時關閉錯誤浮層
+document.addEventListener('click', e => {
+  if(!$('bellWrap').contains(e.target)){
+    $('errorPopup').classList.remove('open');
+  }
+});
 
 // ══════════════════════════════════════════════════════
-//  觀看者畫面：自動輪詢 Google 試算表
+//  觀看者畫面：輪詢 Google 試算表
 // ══════════════════════════════════════════════════════
 
 /**
  * fetchData()
- * 向 Google Apps Script 發出 GET 請求，取得最新資料
- * 加上 ?t=時間戳 避免瀏覽器快取回傳舊資料
+ * 防重疊保護：如果上一個請求還沒回來（isFetching = true），
+ * 直接跳過本次，避免請求堆積。
  */
 async function fetchData(){
+  if(isFetching){
+    // 上一個請求還在等待，跳過
+    return;
+  }
+  isFetching = true;
+
   try {
     const res = await fetch(SHEET_URL + '?t=' + Date.now());
+    if(!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
-    applyViewer(d);         // 取得資料後更新畫面
+    applyViewer(d);
+    clearErrorOnSuccess();
   } catch(e){
-    $('vNum').textContent = '—';  // 連線失敗時顯示破折號
+    setError('無法連線至 Google 試算表（' + e.message + '）');
+  } finally {
+    // 無論成功或失敗，都要解除旗標，確保下次可以發出請求
+    isFetching = false;
   }
 }
 
-/**
- * applyViewer(d)
- * 將資料物件 d 渲染到觀看者畫面
- * @param {object} d - { minutes, note, closed }
- */
 function applyViewer(d){
   const num = $('vNum');
-
-  // 判斷是否暫停服務（試算表存的是布林或字串 'TRUE'）
   if(d.closed === true || d.closed === 'TRUE'){
     num.textContent = '暫停服務';
-    num.className = 'wait-num closed';  // 套用縮小灰色樣式
-    $('vUnit').style.display = 'none';  // 隱藏「分鐘」
-    $('vLbl').style.display = 'none';   // 隱藏「預計等候」
+    num.className = 'wait-num closed';
+    $('vUnit').style.display = 'none';
+    $('vLbl').style.display  = 'none';
   } else {
     num.textContent = d.minutes ?? '—';
     num.className = 'wait-num';
     $('vUnit').style.display = '';
-    $('vLbl').style.display = '';
+    $('vLbl').style.display  = '';
   }
-
-  // 更新備註文字
   const note = $('vNote');
   if(d.note && String(d.note).trim()){
     note.textContent = d.note;
-    note.classList.remove('empty');  // 移除灰色斜體樣式
+    note.classList.remove('empty');
   } else {
     note.textContent = '（目前無備註）';
     note.classList.add('empty');
   }
-
-  // 更新「最後更新時間」（顯示當下時間，非試算表的時間）
   const now = new Date();
   $('vTime').textContent = '更新：' + now.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
 }
 
-/**
- * startPoll()
- * 立即執行一次 fetchData，之後每 6 秒重複執行
- */
 function startPoll(){
   fetchData();
-  pollTimer = setInterval(fetchData, 6000);
+  pollTimer = setInterval(fetchData, POLL_MS);
 }
 
-
 // ══════════════════════════════════════════════════════
-//  管理員 Modal：開啟 / 關閉
+//  管理員面板：開啟 / 關閉
 // ══════════════════════════════════════════════════════
 
-/**
- * openAdmin()
- * 點擊齒輪圖示後觸發
- * 重設登入表單，確保每次開啟都從登入頁開始
- */
 function openAdmin(){
-  $('adminModal').classList.add('open');    // 顯示遮罩
-  $('pwIn').value = '';                     // 清空密碼輸入框
-  $('pwErr').textContent = '';             // 清除錯誤訊息
-  $('loginSection').classList.add('show'); // 顯示登入區
-  $('editSection').classList.remove('show'); // 隱藏編輯區
+  $('adminModal').classList.add('open');
+  $('pwIn').value = '';
+  $('pwErr').textContent = '';
+  $('loginSection').classList.add('show');
+  $('editSection').classList.remove('show');
   $('modalTitle').textContent = '管理員登入';
-  setTimeout(()=>$('pwIn').focus(), 200);  // 延遲後聚焦，手機鍵盤自動彈出
+  setTimeout(()=>$('pwIn').focus(), 200);
 }
 
-/**
- * closeAdmin()
- * 關閉 Modal（點關閉按鈕或點遮罩背景）
- */
 function closeAdmin(){
   $('adminModal').classList.remove('open');
 }
 
-// 點擊遮罩背景（非面板本體）時關閉 Modal
 $('adminModal').addEventListener('click', e => {
   if(e.target === $('adminModal')) closeAdmin();
 });
 
-// 密碼輸入框按 Enter 等同點擊「進入管理」
 $('pwIn').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 
-
 // ══════════════════════════════════════════════════════
-//  管理員：密碼驗證與載入編輯區
+//  管理員：登入驗證
 // ══════════════════════════════════════════════════════
 
-/**
- * doLogin()
- * 比對輸入密碼與 ADMIN_PW
- * 正確：按鈕改為「載入中…」，呼叫 showEdit() 從 Sheet 載入資料
- * 錯誤：顯示紅色錯誤訊息
- */
 function doLogin(){
   if($('pwIn').value === ADMIN_PW){
     $('pwErr').textContent = '';
-    $('pwBtn') && ($('pwBtn').textContent = '載入中…'); // 視覺回饋：載入中
+    $('pwBtn').textContent = '載入中…';
+    isAdmin = true; // 標記已登入，之後發生錯誤才顯示鈴鐺
     showEdit();
   } else {
     $('pwErr').textContent = '密碼錯誤，請再試一次';
   }
 }
 
-/**
- * showEdit()
- * 非同步從 Google Sheet 讀取目前值，
- * 填入表單後才切換到編輯區。
- *
- * ★ 重要：先載入完再顯示，避免 fetch 回來後蓋掉使用者已按的預設按鈕
- */
 async function showEdit(){
   $('modalTitle').textContent = '更新等候時間';
-
-  // 設定試算表快捷連結（有填 SHEET_EDIT_URL 才顯示）
   if(SHEET_EDIT_URL) $('sheetLink').href = SHEET_EDIT_URL;
   else $('sheetLink').style.display = 'none';
 
+  // 先讀取目前 Sheet 資料，再顯示面板（避免 fetch 回來蓋掉使用者操作）
   try {
-    // 讀取試算表目前的值
     const res = await fetch(SHEET_URL + '?t=' + Date.now());
+    if(!res.ok) throw new Error('HTTP ' + res.status);
     const d = await res.json();
-    $('aMin').value = d.minutes ?? 30;
-    // 過濾掉試算表回傳 'undefined' 字串的情況
+    $('aMin').value  = d.minutes ?? 30;
     $('aNote').value = (d.note && d.note !== 'undefined') ? d.note : '';
     isClosed = (d.closed === true || d.closed === 'TRUE');
+    clearErrorOnSuccess();
   } catch(e){
-    // 讀取失敗時使用預設值，不阻擋使用者操作
-    $('aMin').value = 30;
+    // 讀取失敗：使用預設值，並顯示錯誤
+    $('aMin').value  = 30;
     $('aNote').value = '';
     isClosed = false;
+    setError('載入資料失敗，顯示預設值（' + e.message + '）');
   }
 
-  // 資料填入完畢後，才切換到編輯區
   $('loginSection').classList.remove('show');
   $('editSection').classList.add('show');
-  updateSW();   // 同步開關 UI 狀態
-  syncPre();    // 同步預設按鈕高亮
+  $('pwBtn').textContent = '進入管理'; // 還原按鈕文字
+  updateSW();
+  syncPre();
 }
 
-
 // ══════════════════════════════════════════════════════
-//  管理員：編輯表單互動
+//  管理員：表單互動
 // ══════════════════════════════════════════════════════
 
-/**
- * buildPresets()
- * 頁面載入時執行一次，根據 PRESETS 陣列動態產生快速分鐘按鈕
- * 使用立即執行函式 (IIFE) 避免污染全域命名空間
- */
 (function buildPresets(){
   const wrap = $('preWrap');
   PRESETS.forEach(v => {
     const b = document.createElement('button');
     b.className = 'pre';
     b.textContent = v + ' 分';
-    // 點擊後：填入數值到輸入框，並更新高亮狀態
     b.onclick = () => { $('aMin').value = v; syncPre(); };
     wrap.appendChild(b);
   });
 })();
 
-/**
- * syncPre()
- * 比對輸入框的數值與各按鈕，高亮匹配的按鈕
- * 手動輸入或點預設按鈕後都會呼叫
- */
 function syncPre(){
   const val = parseInt($('aMin').value);
   document.querySelectorAll('.pre').forEach(b => {
-    // parseInt('80 分') = 80，可正確比對
     b.classList.toggle('on', parseInt(b.textContent) === val);
   });
 }
 
-/**
- * toggleClosed()
- * 切換「暫停服務」狀態，並更新開關 UI
- */
-function toggleClosed(){
-  isClosed = !isClosed;
-  updateSW();
-}
+function toggleClosed(){ isClosed = !isClosed; updateSW(); }
 
-/**
- * updateSW()
- * 根據 isClosed 變數同步開關的視覺樣式與說明文字
- */
 function updateSW(){
-  $('swEl').className = 'sw' + (isClosed ? ' on' : '');
+  $('swEl').className  = 'sw' + (isClosed ? ' on' : '');
   $('swLbl').textContent = isClosed ? '目前顯示「暫停服務」' : '顯示為「暫停服務」';
 }
 
-
 // ══════════════════════════════════════════════════════
-//  管理員：儲存資料到 Google 試算表
+//  管理員：儲存到 Google 試算表
 // ══════════════════════════════════════════════════════
 
-/**
- * doSave()
- * 將表單值組成 URL 參數，發送 GET 請求給 Apps Script
- * Apps Script 收到參數後寫入試算表
- *
- * 使用 mode: 'no-cors' 的原因：
- *   Apps Script 不回傳 CORS 標頭，直接 fetch 會被瀏覽器擋下。
- *   no-cors 模式可送出請求但無法讀取回應，
- *   所以改用 applyViewer 直接更新本地畫面作為視覺回饋。
- */
 async function doSave(){
   const minutes = parseInt($('aMin').value) || 0;
   const note    = $('aNote').value.trim();
   const closed  = isClosed;
+  const btn     = $('saveBtn');
 
-  // 將資料編碼成 URL 查詢字串
+  // 防止重複點擊
+  btn.disabled = true;
+  btn.textContent = '更新中…';
+
   const url = SHEET_URL
     + '?minutes=' + encodeURIComponent(minutes)
     + '&note='    + encodeURIComponent(note)
     + '&closed='  + encodeURIComponent(closed);
 
   try {
-    // no-cors：只管送出，不等回應（Apps Script 的限制）
     await fetch(url, { method: 'GET', mode: 'no-cors' });
-
-    // 直接更新本地觀看者畫面（不等下一次輪詢）
+    // no-cors 無法確認回應，但正常情況下傳送成功
     applyViewer({ minutes, note, closed });
-
-    // 顯示成功提示，3 秒後自動消失
     const t = $('toast');
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 3000);
+    // 儲存成功後清除錯誤
+    $('adminErrBar').classList.remove('show');
   } catch(e){
-    alert('更新失敗，請確認網路連線');
+    setError('儲存失敗，請確認網路連線（' + e.message + '）');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '儲存並更新 Google 試算表';
   }
 }
 
-
-// ── 頁面載入完成，開始輪詢 ──
+// ── 頁面載入，開始輪詢 ──
+$('hintTxt').textContent = '每 ' + (POLL_MS / 1000) + ' 秒自動更新';
 startPoll();
 </script>
 </body>

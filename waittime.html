@@ -239,7 +239,7 @@
   </div>
 </div>
 
-<p class="hint">每 10 秒自動更新</p>
+<p class="hint">每 6 秒自動更新</p>
 
 <!-- ADMIN MODAL -->
 <div id="adminModal">
@@ -279,7 +279,7 @@
       </div>
 
       <button class="save-btn" onclick="doSave()">儲存並更新 Google 試算表</button>
-      <div class="toast" id="toast">✓ 已更新！觀看者 10 秒內看到新資訊</div>
+      <div class="toast" id="toast">✓ 已更新！觀看者 6 秒內看到新資訊</div>
 
       <a class="sheet-link" id="sheetLink" href="#" target="_blank">📊 直接開啟 Google 試算表</a>
     </div>
@@ -338,7 +338,7 @@ function applyViewer(d){
 
 function startPoll(){
   fetchData();
-  pollTimer = setInterval(fetchData, 10000);
+  pollTimer = setInterval(fetchData, 6000);
 }
 
 // ── 管理員面板 ──

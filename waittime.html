@@ -230,7 +230,7 @@
   </div>
 </div>
 
-<p class="hint" id="hintTxt">每 10 秒自動更新</p>
+<p class="hint" id="hintTxt">每 6 秒自動更新</p>
 
 <!-- ADMIN MODAL -->
 <div id="adminModal">
@@ -273,7 +273,7 @@
       </div>
 
       <button class="save-btn" id="saveBtn" onclick="doSave()">儲存並更新 Google 試算表</button>
-      <div class="toast" id="toast">✓ 已更新！觀看者 10 秒內看到新資訊</div>
+      <div class="toast" id="toast">✓ 已更新！觀看者 6 秒內看到新資訊</div>
 
       <a class="sheet-link" id="sheetLink" href="#" target="_blank">📊 直接開啟 Google 試算表</a>
     </div>
@@ -288,7 +288,7 @@
 const SHEET_URL      = 'https://script.google.com/macros/s/AKfycbxPxjZ34D5eyLxa5ku5D3ioi-Y6JqEiNo8_-WAUN0AXiy18PJIXFNaT170eQc55eBXA/exec';
 const ADMIN_PW       = 'a';   // ← 請改成你的密碼
 const SHEET_EDIT_URL = '';    // ← 選填：試算表直接開啟連結
-const POLL_MS        = 10000; // ← 自動更新間隔（毫秒）建議 10000 以上
+const POLL_MS        = 6000; // ← 自動更新間隔（毫秒）建議 10000 以上
 // ══════════════════════════════════════════════════════
 
 const PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80];
